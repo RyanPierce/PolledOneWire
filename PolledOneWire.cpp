@@ -2,7 +2,7 @@
 Polled OneWire Modifications Copyright (c) 2012, Ryan Pierce, rdpierce@pobox.com
 
 The latest version of this library may be found at:
-[Insert GitHub info here]
+https://github.com/RyanPierce/PolledOneWire
 
 Polled OneWire Version 0.1:
   Initial version, Ryan Pierce
@@ -24,8 +24,9 @@ It is possible that excessive time between polls could cause problems. If at all
 possible, only interleave simple operations (e.g. checking a timer and setting a
 pin) between polls. Things like serial operations are best done outside of polling.
 
-Calling OneWire functions (polled or otherwise) while poll_status != 0 is a recipe
-for disaster. While building checking for this into this code is possible, 
+Calling OneWire functions (polled or otherwise) other than poll() while 
+poll_status != 0 is a recipe for disaster. While building checking for this into this code 
+is possible, in the interest of performance and space such checks are deleted.
 
 write_bit() is unchanged. It includes 65 or 70 us of delay.
 read_bit() is unchanged. It includes 66 us of delay.
@@ -36,15 +37,35 @@ bit value. Writing a 1 only requires 10 us critical delay and 55 us time that co
 be replaced with polling. Writing a 0 can't be optimized; 65 us delay is
 criticual, and the remaining 5 us delay isn't worth optimizing.
 
+The following functions are optimized:
+
 polled_reset() - No delay.
-Subsequent poll() - Single poll will have 80 us delay. All other polls will have no
-explicit delay. Total polling time: 1000 - 1250 us.
+Subsequent poll() - A single poll will have 80 us delay. All other polls will have no
+explicit delay. Total polling time: 1000 - 1250 us. The member variable reset_result
+will be true if any devices are present on the bus, false otherwise.
 
 polled_write() - 65-70 us delay.
 Subsequent poll() - 7 polls each with 65-70 us delay.
 
 polled_read() - 66 us delay.
-Subsequent poll() - 7 polls each with 66 us delay.
+Subsequent poll() - 7 polls each with 66 us delay. When it completes, the resulting byte
+will be stored in the member variable readWriteByte
+
+Note: All multi-byte operations must read or write <= ONEWIRE_MAX_READ_WRITE_BUFFER_LEN
+which may be redefined in user code. This should never be less than 9 as that is the number
+of bytes needed for a Select.
+
+polled_write_bytes() - Makes N calls to polled_write(). There will be 8N-1 calls to poll()
+needed for the operation to complete, each with 65-70 us delay.
+
+polled_read_bytes() - Makes N calls to polled_read(). There will be 8N calls to poll() needed
+for the operation to complete, and all but the last will have 66 us delay; the last will have no
+delay. When it completes, the resulting bytes will be stored in the member variable 
+readWriteBuffer.
+
+polled_select() - A shortcut that does a polled write of 9 bytes.
+
+polled_skip() - A shortcut that does a polled write of 1 byte.
 
 At present, search functions are not optimized. It is anticipated that searching for
 OneWire devices will happen on startup before timing-critical things need to happen.
